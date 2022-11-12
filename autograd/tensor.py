@@ -4,7 +4,7 @@ import numpy as np
 
 class Dependency(NamedTuple):
     tensor: 'Tensor'
-    grad_fn: Callable[[np.ndarray], np.ndarray]
+    grad_fn: Callable[[np.ndarray], np.ndarray] # 重要！相邻两个tensor之间的依赖关系/转换关系，在整个计算中唯一确定的，因此对应的梯度关系也是唯一确定的，并且取决于该转换关系。这是反向传播的最直白的表示
 
 Arrayable = Union[float, list, np.ndarray]
 
@@ -15,7 +15,7 @@ def ensure_array(arrayable: Arrayable) -> np.ndarray:
         return np.array(arrayable)
 
 
-class Tensor:
+class Tensor: # 这个 Tensor 使用 np.ndarray 来表示数据，然后维护依赖的上游关系，以及计算给每个上游反传梯度的函数
     def __init__(self,
                  data: Arrayable,
                  requires_grad: bool = False,
@@ -30,7 +30,7 @@ class Tensor:
             self.zero_grad()
 
     def zero_grad(self) -> None:
-        self.grad = Tensor(np.zeros_like(self.data))
+        self.grad = Tensor(np.zeros_like(self.data)) # 初始状态，tensor对应的梯度为全零
 
     def __repr__(self) -> str:
         return f"Tensor({self.data}, requires_grad={self.requires_grad})"
@@ -44,10 +44,10 @@ class Tensor:
             else:
                 raise RuntimeError("grad must be specified for non-0-tensor")
 
-        self.grad.data += grad.data
+        self.grad.data += grad.data # 下游回传的梯度，直接累加
 
         for dependency in self.depends_on:
-            backward_grad = dependency.grad_fn(grad.data)
+            backward_grad = dependency.grad_fn(grad.data) # 增量计算依赖/输入的梯度，将结果通过 backward() 回传给上游，上游也会累加，并继续传递给上游的上游，直至某个上游没有入边，反向传播结束。
             dependency.tensor.backward(Tensor(backward_grad))
 
     def sum(self) -> 'Tensor':
@@ -70,7 +70,7 @@ def tensor_sum(t: Tensor) -> Tensor:
             """
             return grad * np.ones_like(t.data)
 
-        depends_on = [Dependency(t, grad_fn)]
+        depends_on = [Dependency(t, grad_fn)] # OP 除了定义input->ouput的计算方法，也定义了 doutput / dinput，也就是梯度计算方法
 
     else:
         depends_on = []

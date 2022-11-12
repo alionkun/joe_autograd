@@ -7,9 +7,9 @@ class TestTensorSum(unittest.TestCase):
         t1 = Tensor([1, 2, 3], requires_grad=True)
         t2 = t1.sum()
 
-        t2.backward()
+        t2.backward() # 不提供梯度，默认为 1
 
-        assert t1.grad.data.tolist() == [1, 1, 1]
+        assert t1.grad.data.tolist() == [1, 1, 1] # y=x1+x2+x3, 所以梯度都是 1
 
     def test_sum_with_grad(self):
         t1 = Tensor([1, 2, 3], requires_grad=True)
