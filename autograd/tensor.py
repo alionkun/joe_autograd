@@ -42,16 +42,22 @@ class Tensor: # 这个 Tensor 使用 np.ndarray 来表示数据，然后维护�
             if self.shape == ():
                 grad = Tensor(1)
             else:
-                raise RuntimeError("grad must be specified for non-0-tensor")
+                grad = Tensor(np.ones_like(self.data))
+                # raise RuntimeError("grad must be specified for non-0-tensor")
 
         self.grad.data += grad.data # 下游回传的梯度，直接累加
 
         for dependency in self.depends_on:
-            backward_grad = dependency.grad_fn(grad.data) # 增量计算依赖/输入的梯度，将结果通过 backward() 回传给上游，上游也会累加，并继续传递给上游的上游，直至某个上游没有入边，反向传播结束。
-            dependency.tensor.backward(Tensor(backward_grad))
+            if dependency.tensor.requires_grad:
+                backward_grad = dependency.grad_fn(grad.data) # 增量计算依赖/输入的梯度，将结果通过 backward() 回传给上游，上游也会累加，并继续传递给上游的上游，直至某个上游没有入边，反向传播结束。
+                dependency.tensor.backward(Tensor(backward_grad))
 
     def sum(self) -> 'Tensor':
         return tensor_sum(self)
+    
+    def add(self, other) -> 'Tensor':
+        return tensor_add(self, other)
+        
 
 
 def tensor_sum(t: Tensor) -> Tensor:
@@ -78,3 +84,24 @@ def tensor_sum(t: Tensor) -> Tensor:
     return Tensor(data,
                   requires_grad,
                   depends_on)
+
+def tensor_add(t1: Tensor, t2: Tensor) -> Tensor:
+    data = t1.data + t2.data
+    requires_grad = False
+    depends_on = []
+    if t1.requires_grad:
+        requires_grad = True
+        def grad_fn(grad: np.ndarray) -> np.ndarray:
+            return grad * np.ones_like(t1.data)
+        depends_on.append(Dependency(t1, grad_fn))
+    if t1.requires_grad:
+        requires_grad = True
+        def grad_fn(grad: np.ndarray) -> np.ndarray:
+            return grad * np.ones_like(t2.data)
+        depends_on.append(Dependency(t2, grad_fn))
+    return Tensor(data,
+                  requires_grad,
+                  depends_on)
+    
+
+    
